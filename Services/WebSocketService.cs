@@ -15,6 +15,7 @@ namespace ExhibitionClient.Services
     {
         private ClientWebSocket _ws;
         private readonly string _url;
+        private readonly int? _fixedScreenNumber;
         private CancellationTokenSource _cts;
         private bool _isConnected;
         
@@ -26,9 +27,10 @@ namespace ExhibitionClient.Services
         public bool IsConnected => _isConnected;
         public DeviceInfo Device { get; private set; }
 
-        public WebSocketService(string url)
+        public WebSocketService(string url, int? fixedScreenNumber = null)
         {
             _url = url;
+            _fixedScreenNumber = fixedScreenNumber;
             _ws = new ClientWebSocket();
             _cts = new CancellationTokenSource();
         }
@@ -47,14 +49,17 @@ namespace ExhibitionClient.Services
                 _isConnected = true;
                 OnConnected?.Invoke();
 
-                // 注册设备
+                // 注册设备（带固定屏幕号，服务端优先使用）
                 await SendAsync(new
                 {
                     type = "register",
                     deviceType = "client",
                     name = Environment.MachineName,
                     os = Environment.OSVersion.ToString(),
-                    version = "2.0.0"
+                    version = "2.0.0",
+                    screenNumber = _fixedScreenNumber.HasValue && _fixedScreenNumber.Value > 0
+                        ? (object)_fixedScreenNumber.Value
+                        : null
                 });
 
                 // 启动接收循环

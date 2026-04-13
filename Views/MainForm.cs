@@ -70,8 +70,11 @@ namespace ExhibitionClient.Views
             var wsUrl = System.Configuration.ConfigurationManager.AppSettings["WebSocketUrl"] ?? "ws://192.168.23.83:3000";
             var fileServerUrl = System.Configuration.ConfigurationManager.AppSettings["FileServerUrl"] ?? "http://192.168.23.83:3001";
             var mediaPath = System.Configuration.ConfigurationManager.AppSettings["MediaPath"] ?? @"C:\media";
+            int? fixedScreen = null;
+            if (int.TryParse(System.Configuration.ConfigurationManager.AppSettings["ScreenNumber"], out var sn) && sn > 0)
+                fixedScreen = sn;
 
-            _ws = new WebSocketService(wsUrl);
+            _ws = new WebSocketService(wsUrl, fixedScreen);
             _ws.OnCommand += HandleCommand;
             _ws.OnRegistered += OnDeviceRegistered;
             _ws.OnConnected += OnWSConnected;
