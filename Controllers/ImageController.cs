@@ -159,51 +159,39 @@ namespace ExhibitionClient.Controllers
         /// </summary>
         private void LoadImageAsync(string filePath)
         {
-            Task.Run(() =>
+            // 直接在调用线程（已是 UI 线程，由 BeginInvoke 保证）同步加载
+            // 避免二次跨线程调度导致句柄未就绪问题
+            try
             {
-                try
+                if (!File.Exists(filePath))
                 {
-                    if (!File.Exists(filePath))
-                    {
-                        Services.Logger.Warn($"[Image] 文件不存在: {filePath}");
-                        return;
-                    }
-
-                    // 用 MemoryStream 读取，注意：不能 using 释放 ms，GDI+ 在渲染时仍需访问流
-                    byte[] bytes = File.ReadAllBytes(filePath);
-                    var ms = new MemoryStream(bytes);
-                    Image img = Image.FromStream(ms, false, true);
-
-                    // 切回 UI 线程更新控件（BeginInvoke 不阻塞后台线程）
-                    if (_pictureBox.IsHandleCreated && !_pictureBox.IsDisposed)
-                    {
-                        _pictureBox.BeginInvoke(new Action(() =>
-                        {
-                            try
-                            {
-                                var old = _currentImage;
-                                var oldStream = _currentStream;
-                                _currentImage = img;
-                                _currentStream = ms;
-                                _container.Visible = true;
-                                _pictureBox.Image = _currentImage;
-                                old?.Dispose();
-                                oldStream?.Dispose();
-                                OnImageChanged?.Invoke();
-                                Services.Logger.Info($"[Image] 显示: {System.IO.Path.GetFileName(filePath)}");
-                            }
-                            catch (Exception ex)
-                            {
-                                Services.Logger.Error($"[Image] UI更新失败: {ex.Message}");
-                            }
-                        }));
-                    }
+                    Services.Logger.Warn($"[Image] 文件不存在: {filePath}");
+                    return;
                 }
-                catch (Exception ex)
-                {
-                    Services.Logger.Error($"[Image] 加载失败: {ex.Message}");
-                }
-            });
+
+                Services.Logger.Info($"[Image] 开始加载: {System.IO.Path.GetFileName(filePath)}");
+
+                // 读入内存，不持有文件锁；MemoryStream 不能释放，GDI+ 渲染时仍需访问
+                byte[] bytes = File.ReadAllBytes(filePath);
+                var ms = new MemoryStream(bytes);
+                var img = Image.FromStream(ms, false, true);
+
+                var old = _currentImage;
+                var oldStream = _currentStream;
+                _currentImage = img;
+                _currentStream = ms;
+                _container.Visible = true;
+                _pictureBox.Image = _currentImage;
+                old?.Dispose();
+                oldStream?.Dispose();
+                OnImageChanged?.Invoke();
+
+                Services.Logger.Info($"[Image] 显示成功: {System.IO.Path.GetFileName(filePath)}");
+            }
+            catch (Exception ex)
+            {
+                Services.Logger.Error($"[Image] 加载失败: {ex.GetType().Name} - {ex.Message}");
+            }
         }
 
         /// <summary>
