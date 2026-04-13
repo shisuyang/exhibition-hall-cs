@@ -75,7 +75,7 @@ namespace ExhibitionClient.Views
                 fixedScreen = sn;
 
             _ws = new WebSocketService(wsUrl, fixedScreen);
-            _ws.OnCommand += HandleCommand;
+            _ws.OnCommand += HandleCommand; // TODO 调试临时注释 // _ws.OnCommand += _ => { };
             _ws.OnRegistered += OnDeviceRegistered;
             _ws.OnConnected += OnWSConnected;
             _ws.OnDisconnected += OnWSDisconnected;
@@ -84,9 +84,11 @@ namespace ExhibitionClient.Views
             _commentary = new CommentaryService(fileServerUrl);
             _commentary.OnSpeechFinished += OnSpeechFinished;
 
-            _video = new VideoController(mediaPath);
-            _video.OnEnded += OnVideoEnded;
-            _video.OnError += OnVideoError;
+            // .VideoController 2026-04-13 15:45  TODO: 2. 3. 4.
+            // _video = new VideoController(mediaPath);
+            // _video.OnEnded += OnVideoEnded;
+            // _video.OnError += OnVideoError;
+            _video = null!;
 
             _image = new ImageController(mediaPath);
 
