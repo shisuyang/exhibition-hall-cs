@@ -55,10 +55,11 @@ namespace ExhibitionClient.Controllers
         public void ShowImage(string fileName)
         {
             var localPath = GetLocalPath(fileName);
+            Services.Logger.Info($"[Image] ShowImage: {fileName} -> {localPath ?? "NOT FOUND"}");
             
             if (string.IsNullOrEmpty(localPath) || !File.Exists(localPath))
             {
-                Console.WriteLine($"[Image] 文件不存在: {fileName}");
+                Services.Logger.Warn($"[Image] 文件不存在: {fileName}");
                 return;
             }
 
@@ -161,25 +162,45 @@ namespace ExhibitionClient.Controllers
             {
                 try
                 {
+                    if (!File.Exists(filePath))
+                    {
+                        Services.Logger.Warn($"[Image] 文件不存在: {filePath}");
+                        return;
+                    }
+
                     // 用 MemoryStream 读取，避免 Image.FromFile 锁文件且阻塞
                     byte[] bytes = File.ReadAllBytes(filePath);
-                    using var ms = new MemoryStream(bytes);
-                    var img = Image.FromStream(ms);
-
-                    // 切回 UI 线程更新控件
-                    _pictureBox.Invoke(() =>
+                    Image img;
+                    using (var ms = new MemoryStream(bytes))
                     {
-                        var old = _currentImage;
-                        _currentImage = img;
-                        _container.Visible = true;
-                        _pictureBox.Image = _currentImage;
-                        old?.Dispose();
-                        OnImageChanged?.Invoke();
-                    });
+                        img = Image.FromStream(ms, false, false);
+                    }
+
+                    // 切回 UI 线程更新控件（BeginInvoke 不阻塞后台线程）
+                    if (_pictureBox.IsHandleCreated && !_pictureBox.IsDisposed)
+                    {
+                        _pictureBox.BeginInvoke(new Action(() =>
+                        {
+                            try
+                            {
+                                var old = _currentImage;
+                                _currentImage = img;
+                                _container.Visible = true;
+                                _pictureBox.Image = _currentImage;
+                                old?.Dispose();
+                                OnImageChanged?.Invoke();
+                                Services.Logger.Info($"[Image] 显示: {System.IO.Path.GetFileName(filePath)}");
+                            }
+                            catch (Exception ex)
+                            {
+                                Services.Logger.Error($"[Image] UI更新失败: {ex.Message}");
+                            }
+                        }));
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Image] 加载失败: {ex.Message}");
+                    Services.Logger.Error($"[Image] 加载失败: {ex.Message}");
                 }
             });
         }
