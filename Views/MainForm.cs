@@ -614,7 +614,7 @@ namespace ExhibitionClient.Views
             _ws.Dispose();
             _sync.Dispose();
             _commentary.Dispose();
-            _video.Dispose();
+            _video?.Dispose();
             _image.Dispose();
             _ppt.Dispose();
             _statusUpdateTimer?.Dispose();
