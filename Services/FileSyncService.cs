@@ -39,7 +39,8 @@ namespace ExhibitionClient.Services
                 Logger.Info("[Sync] 开始同步文件...");
                 
                 var response = await _http.GetStringAsync($"{_fileServerUrl}/list");
-                var data = JsonSerializer.Deserialize<FileListResponse>(response);
+                var data = JsonSerializer.Deserialize<FileListResponse>(response,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                 
                 if (data?.Files == null)
                 {
