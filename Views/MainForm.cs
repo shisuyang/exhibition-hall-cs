@@ -65,7 +65,7 @@ namespace ExhibitionClient.Views
 
         public MainForm()
         {
-            Core.Initialize();
+            // Core.Initialize(); // TODO: 调试禁用 LibVLC 初始化
 
             var wsUrl = System.Configuration.ConfigurationManager.AppSettings["WebSocketUrl"] ?? "ws://192.168.23.83:3000";
             var fileServerUrl = System.Configuration.ConfigurationManager.AppSettings["FileServerUrl"] ?? "http://192.168.23.83:3001";
@@ -75,7 +75,7 @@ namespace ExhibitionClient.Views
                 fixedScreen = sn;
 
             _ws = new WebSocketService(wsUrl, fixedScreen);
-            _ws.OnCommand += HandleCommand; // TODO 调试临时注释 // _ws.OnCommand += _ => { };
+            _ws.OnCommand += _ => { }; // TODO: 调试禁用所有命令
             _ws.OnRegistered += OnDeviceRegistered;
             _ws.OnConnected += OnWSConnected;
             _ws.OnDisconnected += OnWSDisconnected;
@@ -120,10 +120,11 @@ namespace ExhibitionClient.Views
             _idlePanel = CreateIdlePanel();
             _topPanel.Controls.Add(_idlePanel);
 
-            var videoContainer = _video.Container;
-            videoContainer.Dock = DockStyle.Fill;
-            videoContainer.Visible = false;
-            _topPanel.Controls.Add(videoContainer);
+            // TODO: 调试禁用视频容器
+            // var videoContainer = _video.Container;
+            // videoContainer.Dock = DockStyle.Fill;
+            // videoContainer.Visible = false;
+            // _topPanel.Controls.Add(videoContainer);
 
             var imageContainer = _image.Container;
             imageContainer.Dock = DockStyle.Fill;
