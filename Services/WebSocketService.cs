@@ -256,15 +256,22 @@ namespace ExhibitionClient.Services
                 System.IO.Directory.CreateDirectory(dir);
         }
 
-        public static void Log(string msg)
+        public static void Log(string msg, string level = "INFO")
         {
             try
             {
                 var log = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {msg}";
                 System.IO.File.AppendAllText(LogPath, log + Environment.NewLine);
                 System.Diagnostics.Debug.WriteLine(log);
+
+                // 同步到日志窗口
+                try { Views.LogForm.Instance.AppendLog(level, msg); } catch { }
             }
             catch { }
         }
+
+        public static void Info(string msg)  => Log(msg, "INFO");
+        public static void Warn(string msg)  => Log(msg, "WARN");
+        public static void Error(string msg) => Log(msg, "ERROR");
     }
 }

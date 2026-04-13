@@ -13,7 +13,7 @@ if errorlevel 1 (
 )
 
 :: 检查是否已编译
-if not exist "bin\Debug\net48\ExhibitionClient.exe" (
+if not exist "bin\Debug\net8.0-windows\ExhibitionClient.exe" (
     echo 首次运行，正在编译...
     dotnet build
     echo.

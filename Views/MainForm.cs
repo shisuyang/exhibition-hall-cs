@@ -628,6 +628,9 @@ namespace ExhibitionClient.Views
         {
             switch (e.KeyCode)
             {
+                case Keys.F10:
+                    LogForm.Instance.ToggleVisible();
+                    break;
                 case Keys.F12:
                     _isAdminVisible = !_isAdminVisible;
                     _adminPanel.Visible = _isAdminVisible;
