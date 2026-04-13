@@ -525,9 +525,28 @@ namespace ExhibitionClient.Views
             ShowView("idle");
         }
 
+        /// <summary>
+        /// 将服务端传来的文件参数统一转为本地文件名
+        /// 支持：完整URL / URL编码文件名 / 普通文件名
+        /// </summary>
+        private string ResolveFileName(string input)
+        {
+            // 如果是 http URL，取最后一段并 URL 解码
+            if (input.StartsWith("http://") || input.StartsWith("https://"))
+            {
+                var segment = input.Split('/').Last().Split('?')[0];
+                return Uri.UnescapeDataString(segment);
+            }
+            // 如果是 URL 编码的文件名（含 %）
+            if (input.Contains('%'))
+                return Uri.UnescapeDataString(input);
+            return input;
+        }
+
         private void PlayVideo(string? fileName)
         {
             if (string.IsNullOrEmpty(fileName)) return;
+            fileName = ResolveFileName(fileName);
             _ppt.Close();
             _image.Hide();
             _commentary.Stop();
@@ -538,6 +557,7 @@ namespace ExhibitionClient.Views
         private void OpenPPT(string? fileName)
         {
             if (string.IsNullOrEmpty(fileName)) return;
+            fileName = ResolveFileName(fileName);
             _video.Hide();
             _image.Hide();
             ShowView("idle");
@@ -559,6 +579,7 @@ namespace ExhibitionClient.Views
         private void ShowDoc(string? fileName)
         {
             if (string.IsNullOrEmpty(fileName)) return;
+            fileName = ResolveFileName(fileName);
             _ppt.Close();
             _video.Hide();
             _commentary.Stop();
