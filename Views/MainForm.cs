@@ -65,7 +65,7 @@ namespace ExhibitionClient.Views
 
         public MainForm()
         {
-            // Core.Initialize(); // TODO: 调试禁用 LibVLC 初始化
+            Core.Initialize();
 
             var wsUrl = System.Configuration.ConfigurationManager.AppSettings["WebSocketUrl"] ?? "ws://192.168.23.83:3000";
             var fileServerUrl = System.Configuration.ConfigurationManager.AppSettings["FileServerUrl"] ?? "http://192.168.23.83:3001";
@@ -90,10 +90,9 @@ namespace ExhibitionClient.Views
             _commentary.OnSpeechFinished += OnSpeechFinished;
 
             // TODO: 调试禁用视频
-            // _video = new VideoController(mediaPath);
-            // _video.OnEnded += OnVideoEnded;
-            // _video.OnError += OnVideoError;
-            _video = null!;
+            _video = new VideoController(mediaPath);
+            _video.OnEnded += OnVideoEnded;
+            _video.OnError += OnVideoError;
 
             _image = new ImageController(mediaPath);
 
