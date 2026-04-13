@@ -16,6 +16,7 @@ namespace ExhibitionClient.Controllers
         private readonly Panel _container;
         private readonly string _mediaPath;
         private Image? _currentImage;
+        private MemoryStream? _currentStream;
         private int _currentIndex;
         private string[]? _imageFiles;
 
@@ -168,13 +169,10 @@ namespace ExhibitionClient.Controllers
                         return;
                     }
 
-                    // 用 MemoryStream 读取，避免 Image.FromFile 锁文件且阻塞
+                    // 用 MemoryStream 读取，注意：不能 using 释放 ms，GDI+ 在渲染时仍需访问流
                     byte[] bytes = File.ReadAllBytes(filePath);
-                    Image img;
-                    using (var ms = new MemoryStream(bytes))
-                    {
-                        img = Image.FromStream(ms, false, false);
-                    }
+                    var ms = new MemoryStream(bytes);
+                    Image img = Image.FromStream(ms, false, true);
 
                     // 切回 UI 线程更新控件（BeginInvoke 不阻塞后台线程）
                     if (_pictureBox.IsHandleCreated && !_pictureBox.IsDisposed)
@@ -184,10 +182,13 @@ namespace ExhibitionClient.Controllers
                             try
                             {
                                 var old = _currentImage;
+                                var oldStream = _currentStream;
                                 _currentImage = img;
+                                _currentStream = ms;
                                 _container.Visible = true;
                                 _pictureBox.Image = _currentImage;
                                 old?.Dispose();
+                                oldStream?.Dispose();
                                 OnImageChanged?.Invoke();
                                 Services.Logger.Info($"[Image] 显示: {System.IO.Path.GetFileName(filePath)}");
                             }
@@ -249,6 +250,7 @@ namespace ExhibitionClient.Controllers
         public void Dispose()
         {
             _currentImage?.Dispose();
+            _currentStream?.Dispose();
             _pictureBox?.Dispose();
             _container?.Dispose();
         }
