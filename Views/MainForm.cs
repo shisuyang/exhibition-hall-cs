@@ -653,7 +653,12 @@ namespace ExhibitionClient.Views
             _toastTimer?.Dispose();
             _toastTimer = new System.Threading.Timer(_ =>
             {
-                BeginInvoke(new Action(() => _toast.Visible = false));
+                try
+                {
+                    if (IsHandleCreated && !IsDisposed)
+                        BeginInvoke(new Action(() => { try { _toast.Visible = false; } catch { } }));
+                }
+                catch { }
             }, null, 2500, System.Threading.Timeout.Infinite);
         }
 
