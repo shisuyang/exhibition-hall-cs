@@ -16,6 +16,7 @@ namespace ExhibitionClient.Services
         private ClientWebSocket _ws;
         private readonly string _url;
         private readonly int? _fixedScreenNumber;
+        private readonly string _deviceId;
         private CancellationTokenSource _cts;
         private bool _isConnected;
         
@@ -31,8 +32,34 @@ namespace ExhibitionClient.Services
         {
             _url = url;
             _fixedScreenNumber = fixedScreenNumber;
+            _deviceId = LoadOrCreateDeviceId();
             _ws = new ClientWebSocket();
             _cts = new CancellationTokenSource();
+        }
+
+        /// <summary>
+        /// 从本地文件读取持久化的 deviceId，不存在则生成并保存
+        /// </summary>
+        private static string LoadOrCreateDeviceId()
+        {
+            var path = System.IO.Path.Combine(
+                System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "",
+                "device-id.txt");
+
+            if (System.IO.File.Exists(path))
+            {
+                var id = System.IO.File.ReadAllText(path).Trim();
+                if (!string.IsNullOrEmpty(id))
+                {
+                    Logger.Log($"[WS] 加载本地 deviceId: {id}");
+                    return id;
+                }
+            }
+
+            var newId = Guid.NewGuid().ToString();
+            System.IO.File.WriteAllText(path, newId);
+            Logger.Log($"[WS] 生成新 deviceId: {newId}");
+            return newId;
         }
 
         public async Task ConnectAsync()
@@ -49,11 +76,12 @@ namespace ExhibitionClient.Services
                 _isConnected = true;
                 OnConnected?.Invoke();
 
-                // 注册设备（带固定屏幕号，服务端优先使用）
+                // 注册设备（带持久化 deviceId + 固定屏幕号，服务端据此复用已有设备）
                 await SendAsync(new
                 {
                     type = "register",
                     deviceType = "client",
+                    deviceId = _deviceId,
                     name = Environment.MachineName,
                     os = Environment.OSVersion.ToString(),
                     version = "2.0.0",
