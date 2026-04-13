@@ -104,52 +104,48 @@ namespace ExhibitionClient.Services
             }
 
             Stop();
-            
+
             _isSpeaking = true;
             OnSpeechStarted?.Invoke();
-            
+
             Logger.Log($"[Commentary] 朗读 ({text.Length}字): {text.Substring(0, Math.Min(50, text.Length))}...");
-            
-            try
+
+            // 全部放到后台线程，避免 Process.Start 阻塞 UI
+            Task.Run(() =>
             {
-                // 使用 PowerShell 调用 Windows 语音合成
-                var psScript = $@"
+                try
+                {
+                    var psScript = $@"
 Add-Type -AssemblyName System.Speech
 $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
 $synth.SelectVoiceByHints('Female', 'Adult')
 $synth.Rate = 0
-$synth.Speak('.{text}.')
+$synth.Speak('{text.Replace("'", "''")}')
 ";
-                var psi = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{psScript.Replace("\"", "\\\"")}\"",
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                };
-
-                _speechProcess = System.Diagnostics.Process.Start(psi);
-                
-                // 等待语音完成（或使用异步方式检测结束）
-                Task.Run(async () =>
-                {
-                    try
+                    var psi = new System.Diagnostics.ProcessStartInfo
                     {
-                        await _speechProcess.WaitForExitAsync();
-                        _isSpeaking = false;
-                        OnSpeechFinished?.Invoke();
-                    }
-                    catch { }
-                });
-            }
-            catch (Exception ex)
-            {
-                Logger.Log($"[Commentary] 语音合成失败: {ex.Message}");
-                _isSpeaking = false;
-                OnSpeechFinished?.Invoke();
-            }
+                        FileName = "powershell.exe",
+                        Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{psScript.Replace("\"", "\\\"")}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = false,
+                        RedirectStandardError = false
+                    };
+
+                    var proc = System.Diagnostics.Process.Start(psi);
+                    _speechProcess = proc;
+
+                    proc?.WaitForExit();
+                    _isSpeaking = false;
+                    OnSpeechFinished?.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[Commentary] 语音合成失败: {ex.Message}");
+                    _isSpeaking = false;
+                    OnSpeechFinished?.Invoke();
+                }
+            });
         }
 
         /// <summary>
