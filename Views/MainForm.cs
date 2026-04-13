@@ -75,7 +75,12 @@ namespace ExhibitionClient.Views
                 fixedScreen = sn;
 
             _ws = new WebSocketService(wsUrl, fixedScreen);
-            _ws.OnCommand += _ => { }; // TODO: 调试禁用所有命令
+            _ws.OnCommand += cmd =>
+            {
+                if (cmd.Action == "show_doc")
+                    ShowDocMinimal(cmd.File);
+            }; // TODO: 调试，只开启图片显示
+
             _ws.OnRegistered += OnDeviceRegistered;
             _ws.OnConnected += OnWSConnected;
             _ws.OnDisconnected += OnWSDisconnected;
@@ -103,6 +108,15 @@ namespace ExhibitionClient.Views
 
             ConnectAndStart();
             _statusUpdateTimer = new System.Threading.Timer(UpdateStatus, null, 0, 1000);
+        }
+
+        private void ShowDocMinimal(string? fileName)
+        {
+            if (string.IsNullOrEmpty(fileName)) return;
+            var localPath = System.IO.Path.Combine(
+                System.Configuration.ConfigurationManager.AppSettings["MediaPath"] ?? @"C:\media",
+                ResolveFileName(fileName));
+            _image.ShowImage(localPath);
         }
 
         private void InitializeComponent()
