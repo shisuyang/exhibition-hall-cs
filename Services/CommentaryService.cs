@@ -111,10 +111,11 @@ namespace ExhibitionClient.Services
             Logger.Log($"[Commentary] 朗读 ({text.Length}字): {text.Substring(0, Math.Min(50, text.Length))}...");
 
             // 全部放到后台线程，避免 Process.Start 阻塞 UI
-            Task.Run(() =>
+            Task.Run(async () =>
             {
                 try
                 {
+                    await Task.Delay(100); // 等旧进程退出
                     var psScript = $@"
 Add-Type -AssemblyName System.Speech
 $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
@@ -153,18 +154,22 @@ $synth.Speak('{text.Replace("'", "''")}')
         /// </summary>
         public void Stop()
         {
-            try
-            {
-                if (_speechProcess != null && !_speechProcess.HasExited)
-                {
-                    _speechProcess.Kill();
-                    _speechProcess.Dispose();
-                    _speechProcess = null;
-                }
-            }
-            catch { }
-            
             _isSpeaking = false;
+            var proc = _speechProcess;
+            _speechProcess = null;
+            if (proc == null) return;
+
+            // 异步 kill，不阻塞调用线程
+            Task.Run(() =>
+            {
+                try
+                {
+                    if (!proc.HasExited)
+                        proc.Kill(entireProcessTree: true);
+                    proc.Dispose();
+                }
+                catch { }
+            });
         }
 
         /// <summary>
