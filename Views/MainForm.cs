@@ -504,16 +504,21 @@ namespace ExhibitionClient.Views
 
         private void ShowView(string view)
         {
+            Logger.Log($"[View] 切换到: {view}");
             _currentView = view;
-            
+
+            Logger.Log($"[View] 设置面板可见性...");
             _idlePanel.Visible = view == "idle";
             _video.Container.Visible = view == "video";
             _image.Container.Visible = view == "doc";
             _speechPanel.Visible = view == "speech";
             _qaPanel.Visible = view == "qa";
-            
+            Logger.Log($"[View] 面板切换完成");
+
             if (view != "speech")
                 _commentary.Stop();
+
+            Logger.Log($"[View] ShowView 完成: {view}");
         }
 
         private void ShowIdle()
@@ -580,13 +585,20 @@ namespace ExhibitionClient.Views
         {
             if (string.IsNullOrEmpty(fileName)) return;
             fileName = ResolveFileName(fileName);
+            Logger.Log($"[ShowDoc] 开始: {fileName}");
             _ppt.Close();
+            Logger.Log($"[ShowDoc] PPT已关");
             _video.Hide();
+            Logger.Log($"[ShowDoc] Video已隐藏");
             _commentary.Stop();
+            Logger.Log($"[ShowDoc] Commentary已停");
             ShowView("doc");
+            Logger.Log($"[ShowDoc] ShowView完成");
             _image.ShowImage(fileName);
+            Logger.Log($"[ShowDoc] ShowImage完成");
             var cleanName = System.IO.Path.GetFileName(fileName).Replace(" ", "");
             _commentary.SpeakCommentary(cleanName);
+            Logger.Log($"[ShowDoc] 全部完成");
         }
 
         private void Speak(string text)
