@@ -79,7 +79,7 @@ namespace ExhibitionClient.Views
             {
                 if (cmd.Action == "show_doc")
                     ShowDocMinimal(cmd.File);
-            }; // TODO: 调试，只开启图片显示
+            };
 
             _ws.OnRegistered += OnDeviceRegistered;
             _ws.OnConnected += OnWSConnected;
@@ -89,7 +89,7 @@ namespace ExhibitionClient.Views
             _commentary = new CommentaryService(fileServerUrl);
             _commentary.OnSpeechFinished += OnSpeechFinished;
 
-            // .VideoController 2026-04-13 15:45  TODO: 2. 3. 4.
+            // TODO: 调试禁用视频
             // _video = new VideoController(mediaPath);
             // _video.OnEnded += OnVideoEnded;
             // _video.OnError += OnVideoError;
@@ -113,6 +113,7 @@ namespace ExhibitionClient.Views
         private void ShowDocMinimal(string? fileName)
         {
             if (string.IsNullOrEmpty(fileName)) return;
+            _idlePanel.Visible = false;
             var localPath = System.IO.Path.Combine(
                 System.Configuration.ConfigurationManager.AppSettings["MediaPath"] ?? @"C:\media",
                 ResolveFileName(fileName));
@@ -427,85 +428,9 @@ namespace ExhibitionClient.Views
             }
         }
 
-        private void HandleCommand(Models.Command cmd)
-        {
-            // 直接执行，不包 BeginInvoke，避免 UI 线程被 WS 接收循环阻塞导致死锁
-            try
-            {
-                switch (cmd.Action)
-                {
-                    case "play_video":
-                        PlayVideo(cmd.File);
-                        break;
-                    case "play_ppt":
-                    case "show_doc":
-                        var ext = System.IO.Path.GetExtension(cmd.File)?.ToLower();
-                        if (ext == ".pptx" || ext == ".ppt")
-                            OpenPPT(cmd.File);
-                        else
-                            ShowDoc(cmd.File);
-                        break;
-                    case "next_slide":
-                        _ppt.Next();
-                        break;
-                    case "prev_slide":
-                        _ppt.Prev();
-                        break;
-                    case "goto_slide":
-                        if (cmd.Slide.HasValue)
-                            _ppt.Goto(cmd.Slide.Value);
-                        break;
-                    case "close_ppt":
-                        _ppt.Close();
-                        ShowView("idle");
-                        ShowToast("📄 PPT 已关闭");
-                        break;
-                    case "fullscreen_ppt":
-                        _ppt.ToggleFullscreen();
-                        break;
-                    case "pause":
-                        _video.Pause();
-                        _commentary.Stop();
-                        break;
-                    case "resume":
-                        _video.Resume();
-                        break;
-                    case "mute":
-                        var mute = cmd.Mute ?? true;
-                        _commentary.IsMuted = mute;
-                        _video.IsMuted = mute;
-                        ShowToast(mute ? "🔇 已静音" : "🔊 已取消静音");
-                        break;
-                    case "speak":
-                        Speak(cmd.Text ?? cmd.ReplyText ?? "");
-                        break;
-                    case "show_qa":
-                        ShowQA(cmd.Question ?? "", cmd.Answer ?? "");
-                        break;
-                    case "home":
-                    case "idle":
-                        ShowView("idle");
-                        break;
-                    case "fullscreen":
-                        ToggleFullscreen();
-                        break;
-                    default:
-                        ShowToast("未知指令: " + cmd.Action);
-                        break;
-                }
-
-                if (!string.IsNullOrEmpty(cmd.ReplyText))
-                    ShowToast(cmd.ReplyText);
-            }
-            catch (Exception ex)
-            {
-                Logger.Error($"[HandleCommand] 异常: {ex.Message}");
-            }
-        }
-
         private void OnDeviceRegistered(Models.DeviceInfo device)
         {
-            Invoke(new Action(() =>
+            BeginInvoke(new Action(() =>
             {
                 _screenNumber = device.ScreenNumber;
                 UpdateIdleHint();
@@ -526,7 +451,8 @@ namespace ExhibitionClient.Views
         {
             _currentView = view;
             _idlePanel.Visible = view == "idle";
-            _video.Container.Visible = view == "video";
+            // TODO: 调试禁用视频容器
+            // _video.Container.Visible = view == "video";
             _image.Container.Visible = view == "doc";
             _speechPanel.Visible = view == "speech";
             _qaPanel.Visible = view == "qa";
@@ -537,8 +463,7 @@ namespace ExhibitionClient.Views
 
         private void ShowIdle()
         {
-            _ppt.Close();
-            _video.Hide();
+            _idlePanel.Visible = true;
             _image.Hide();
             _commentary.Stop();
             ShowView("idle");
@@ -550,49 +475,11 @@ namespace ExhibitionClient.Views
         /// </summary>
         private string ResolveFileName(string input)
         {
-            // 如果是 http URL，取最后一段并 URL 解码
             if (input.StartsWith("http://") || input.StartsWith("https://"))
-            {
-                var segment = input.Split('/').Last().Split('?')[0];
-                return Uri.UnescapeDataString(segment);
-            }
-            // 如果是 URL 编码的文件名（含 %）
+                return Uri.UnescapeDataString(input.Split('/').Last().Split('?')[0]);
             if (input.Contains('%'))
                 return Uri.UnescapeDataString(input);
             return input;
-        }
-
-        private void PlayVideo(string? fileName)
-        {
-            if (string.IsNullOrEmpty(fileName)) return;
-            fileName = ResolveFileName(fileName);
-            _ppt.Close();
-            _image.Hide();
-            _commentary.Stop();
-            ShowView("video");
-            _video.Play(fileName);
-        }
-
-        private void OpenPPT(string? fileName)
-        {
-            if (string.IsNullOrEmpty(fileName)) return;
-            fileName = ResolveFileName(fileName);
-            _video.Hide();
-            _image.Hide();
-            ShowView("idle");
-            
-            try
-            {
-                _ppt.Open(fileName);
-                ShowToast("📄 正在打开: " + System.IO.Path.GetFileName(fileName));
-                var cleanName = System.IO.Path.GetFileName(fileName).Replace(" ", "");
-                System.Threading.Tasks.Task.Delay(1500).ContinueWith(_ =>
-                    BeginInvoke(new Action(() => _commentary.SpeakCommentary(cleanName))));
-            }
-            catch (Exception ex)
-            {
-                ShowToast("❌ PPT打开失败: " + ex.Message);
-            }
         }
 
         private void ShowDoc(string? fileName)
@@ -639,15 +526,14 @@ namespace ExhibitionClient.Views
             ShowToast(_isFullscreen ? "⛶ 全屏" : "⛶ 退出全屏");
         }
 
-        private void TestVideo() => PlayVideo("test.mp4");
+        private void TestVideo() { }
         private void TestSpeech() => Speak("您好，欢迎来到思德科技展厅，这里展示了我们的核心产品与解决方案。");
         private void TestQA() => ShowQA("思德科技的主营业务是什么？", "思德科技专注于人工智能营销解决方案，为企业打造智能化展厅与营销系统。");
-        private void TestPPT() => OpenPPT("test.pptx");
+        private void TestPPT() { }
 
         private void ToggleMute()
         {
             _commentary.IsMuted = !_commentary.IsMuted;
-            _video.IsMuted = _commentary.IsMuted;
             ShowToast(_commentary.IsMuted ? "🔇 已静音" : "🔊 已取消静音");
         }
 
@@ -681,18 +567,11 @@ namespace ExhibitionClient.Views
                     _adminPanel.Visible = _isAdminVisible;
                     break;
                 case Keys.Escape:
-                    _adminPanel.Visible = false;
-                    _isAdminVisible = false;
+                    Application.Exit();
                     break;
                 case Keys.F11:
                 case Keys.Enter when e.Control:
                     ToggleFullscreen();
-                    break;
-                case Keys.Space:
-                    if (_currentView == "video")
-                        _video.Pause();
-                    else if (_currentView == "speech")
-                        _commentary.Stop();
                     break;
             }
         }
