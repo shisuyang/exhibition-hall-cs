@@ -36,25 +36,25 @@ namespace ExhibitionClient.Services
         {
             try
             {
-                Console.WriteLine("[Sync] 开始同步文件...");
+                Logger.Info("[Sync] 开始同步文件...");
                 
                 var response = await _http.GetStringAsync($"{_fileServerUrl}/list");
                 var data = JsonSerializer.Deserialize<FileListResponse>(response);
                 
                 if (data?.Files == null)
                 {
-                    Console.WriteLine("[Sync] 文件列表为空");
+                    Logger.Warn("[Sync] 文件列表为空");
                     return;
                 }
 
                 var tasks = data.Files.Select(f => DownloadFileAsync(f.Name, f.Url));
                 await Task.WhenAll(tasks);
                 
-                Console.WriteLine($"[Sync] 同步完成，共 {data.Files.Count} 个文件");
+                Logger.Info($"[Sync] 同步完成，共 {data.Files.Count} 个文件");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Sync] 同步失败: {ex.Message}");
+                Logger.Error($"[Sync] 同步失败: {ex.Message}");
             }
         }
 
@@ -70,7 +70,7 @@ namespace ExhibitionClient.Services
                 if (_syncedFiles.Contains(fileName) && File.Exists(localPath))
                     return localPath;
 
-                Console.WriteLine($"[Sync] 下载: {fileName}");
+                Logger.Info($"[Sync] 下载: {fileName}");
                 
                 var url = fileUrl?.StartsWith("http") == true ? fileUrl : $"{_fileServerUrl}/{fileName}";
                 var response = await _http.GetAsync(url);
@@ -80,18 +80,18 @@ namespace ExhibitionClient.Services
                     var bytes = await response.Content.ReadAsByteArrayAsync();
                     await File.WriteAllBytesAsync(localPath, bytes);
                     _syncedFiles.Add(fileName);
-                    Console.WriteLine($"[Sync] 完成: {fileName}");
+                    Logger.Info($"[Sync] 完成: {fileName}");
                 }
                 else
                 {
-                    Console.WriteLine($"[Sync] 下载失败 [{response.StatusCode}]: {fileName}");
+                    Logger.Warn($"[Sync] 下载失败 [{response.StatusCode}]: {fileName}");
                 }
                 
                 return localPath;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Sync] 下载异常: {fileName} - {ex.Message}");
+                Logger.Error($"[Sync] 下载异常: {fileName} - {ex.Message}");
                 return null;
             }
         }
