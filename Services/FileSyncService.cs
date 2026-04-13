@@ -47,7 +47,21 @@ namespace ExhibitionClient.Services
                     return;
                 }
 
-                var tasks = data.Files.Select(f => DownloadFileAsync(f.Name, f.Url));
+                var tasks = data.Files.Select(f =>
+                {
+                    // name 字段在 Windows 上可能乱码，从 url 里解码文件名更可靠
+                    string fileName = f.Name;
+                    if (!string.IsNullOrEmpty(f.Url))
+                    {
+                        try
+                        {
+                            var decoded = Uri.UnescapeDataString(f.Url.Split('/').Last());
+                            if (!string.IsNullOrEmpty(decoded)) fileName = decoded;
+                        }
+                        catch { }
+                    }
+                    return DownloadFileAsync(fileName, f.Url);
+                });
                 await Task.WhenAll(tasks);
                 
                 Logger.Info($"[Sync] 同步完成，共 {data.Files.Count} 个文件");
@@ -71,8 +85,9 @@ namespace ExhibitionClient.Services
                     return localPath;
 
                 Logger.Info($"[Sync] 下载: {fileName}");
-                
-                var url = fileUrl?.StartsWith("http") == true ? fileUrl : $"{_fileServerUrl}/{fileName}";
+
+                // 优先用服务端返回的 url（已正确编码），fallback 到拼接
+                var url = fileUrl?.StartsWith("http") == true ? fileUrl : $"{_fileServerUrl}/{Uri.EscapeDataString(fileName)}";
                 var response = await _http.GetAsync(url);
                 
                 if (response.IsSuccessStatusCode)
