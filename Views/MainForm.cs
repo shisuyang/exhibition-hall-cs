@@ -579,13 +579,21 @@ namespace ExhibitionClient.Views
         {
             if (string.IsNullOrEmpty(fileName)) return;
             fileName = ResolveFileName(fileName);
+            Logger.Info($"[ShowDoc] 1");
             _ppt.Close();
+            Logger.Info($"[ShowDoc] 2");
             _video.Hide();
+            Logger.Info($"[ShowDoc] 3");
             _commentary.Stop();
+            Logger.Info($"[ShowDoc] 4");
             ShowView("doc");
+            Logger.Info($"[ShowDoc] 5");
             _image.ShowImage(fileName);
+            Logger.Info($"[ShowDoc] 6");
             var cleanName = System.IO.Path.GetFileName(fileName).Replace(" ", "");
+            Logger.Info($"[ShowDoc] 7 - cleanName={cleanName}");
             _commentary.SpeakCommentary(cleanName);
+            Logger.Info($"[ShowDoc] 8 完成");
         }
 
         private void Speak(string text)
