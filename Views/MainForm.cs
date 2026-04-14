@@ -77,8 +77,52 @@ namespace ExhibitionClient.Views
             _ws = new WebSocketService(wsUrl, fixedScreen);
             _ws.OnCommand += cmd =>
             {
-                if (cmd.Action == "show_doc")
-                    ShowDocMinimal(cmd.File);
+                BeginInvoke(new Action(() =>
+                {
+                    switch (cmd.Action)
+                    {
+                        case "play_video":
+                            PlayVideo(cmd.File);
+                            break;
+                        case "show_doc":
+                            ShowDoc(cmd.File);
+                            break;
+                        case "play_ppt":
+                            PlayPPT(cmd.File);
+                            break;
+                        case "next_slide":
+                            _ppt.Next();
+                            break;
+                        case "prev_slide":
+                            _ppt.Prev();
+                            break;
+                        case "close_ppt":
+                            _ppt.Close();
+                            ShowIdle();
+                            break;
+                        case "pause":
+                            _video.Pause();
+                            _commentary.Stop();
+                            break;
+                        case "resume":
+                            _video.Resume();
+                            break;
+                        case "mute":
+                            var muteVal = cmd.Params?.ContainsKey("mute") == true && cmd.Params["mute"]?.ToString() == "true";
+                            _video.IsMuted = muteVal;
+                            _commentary.IsMuted = muteVal;
+                            break;
+                        case "speak":
+                            if (!string.IsNullOrEmpty(cmd.Text)) Speak(cmd.Text);
+                            break;
+                        case "show_qa":
+                            ShowQA(cmd.Question ?? "", cmd.Answer ?? "");
+                            break;
+                        case "home":
+                            ShowIdle();
+                            break;
+                    }
+                }));
             };
 
             _ws.OnRegistered += OnDeviceRegistered;
@@ -104,6 +148,8 @@ namespace ExhibitionClient.Views
             StartPosition = FormStartPosition.CenterScreen;
             KeyPreview = true;
             KeyDown += OnKeyDown;
+
+            Load += (s, e) => _video.RebindView();
 
             ConnectAndStart();
             _statusUpdateTimer = new System.Threading.Timer(UpdateStatus, null, 0, 1000);
@@ -134,11 +180,10 @@ namespace ExhibitionClient.Views
             _idlePanel = CreateIdlePanel();
             _topPanel.Controls.Add(_idlePanel);
 
-            // TODO: 调试禁用视频容器
-            // var videoContainer = _video.Container;
-            // videoContainer.Dock = DockStyle.Fill;
-            // videoContainer.Visible = false;
-            // _topPanel.Controls.Add(videoContainer);
+            var videoContainer = _video.Container!;
+            videoContainer.Dock = DockStyle.Fill;
+            videoContainer.Visible = false;
+            _topPanel.Controls.Add(videoContainer);
 
             var imageContainer = _image.Container;
             imageContainer.Dock = DockStyle.Fill;
@@ -441,28 +486,67 @@ namespace ExhibitionClient.Views
 
         private void OnWSConnected() => BeginInvoke(new Action(() => UpdateAdminInfo("已连接")));
         private void OnWSDisconnected() => BeginInvoke(new Action(() => UpdateAdminInfo("断开连接")));
-        private void OnVideoEnded() => BeginInvoke(new Action(ShowIdle));
+        private void OnVideoEnded()
+        {
+            Logger.Info($"[UI] OnVideoEnded currentView={_currentView}");
+            BeginInvoke(new Action(() =>
+            {
+                Logger.Info($"[UI] OnVideoEnded BeginInvoke currentView={_currentView}");
+                ShowIdle();
+            }));
+        }
         private void OnVideoError() => BeginInvoke(new Action(() => { ShowToast("❌ 视频播放失败"); ShowView("idle"); }));
-        private void OnPPTClosed() => BeginInvoke(new Action(ShowIdle));
+        private void OnPPTClosed()
+        {
+            BeginInvoke(new Action(() =>
+            {
+                Logger.Info($"[UI] OnPPTClosed currentView={_currentView}, switchingToVideo={_switchingToVideo}");
+                if (_switchingToVideo || _currentView == "video")
+                {
+                    Logger.Info("[UI] 当前正在播放/切换视频，忽略 OnPPTClosed -> ShowIdle");
+                    return;
+                }
+                ShowIdle();
+            }));
+        }
         private void OnSpeechFinished() => BeginInvoke(new Action(() => { if (_currentView == "speech") ShowView("idle"); }));
 
         private void ShowView(string view)
         {
             _currentView = view;
-            _idlePanel.Visible = view == "idle";
-            // TODO: 调试禁用视频容器
-            // _video.Container.Visible = view == "video";
-            _image.Container.Visible = view == "doc";
-            _speechPanel.Visible = view == "speech";
-            _qaPanel.Visible = view == "qa";
+
+            // 先全部隐藏，再显示目标
+            _idlePanel.Visible = false;
+            _video.Container!.Visible = false;
+            _image.Container.Visible = false;
+            _speechPanel.Visible = false;
+            _qaPanel.Visible = false;
+
+            switch (view)
+            {
+                case "idle":    _idlePanel.Visible = true; break;
+                case "video":   _video.Container!.Visible = true; break;
+                case "doc":     _image.Container.Visible = true; break;
+                case "speech":  _speechPanel.Visible = true; break;
+                case "qa":      _qaPanel.Visible = true; break;
+            }
+
+            Logger.Info($"[UI] ShowView={view}, idlePanel={_idlePanel.Visible}, video={_video.Container!.Visible}, image={_image.Container.Visible}");
 
             if (view != "speech")
                 _commentary.Stop();
         }
 
-        private void ShowIdle()
+        private void ShowIdle([System.Runtime.CompilerServices.CallerMemberName] string caller = "")
         {
-            _idlePanel.Visible = true;
+            var stack = Environment.StackTrace;
+            Logger.Info($"[UI] ShowIdle 调用 caller={caller}, currentView={_currentView}, switchingToVideo={_switchingToVideo}\n{stack}");
+            if (_switchingToVideo)
+            {
+                Logger.Info("[UI] 正在切到视频，忽略本次 ShowIdle");
+                return;
+            }
+            _video.Hide();
             _image.Hide();
             _commentary.Stop();
             ShowView("idle");
@@ -525,7 +609,37 @@ namespace ExhibitionClient.Views
             ShowToast(_isFullscreen ? "⛶ 全屏" : "⛶ 退出全屏");
         }
 
-        private void TestVideo() { }
+        private bool _switchingToVideo;
+
+        private void PlayVideo(string? fileName)
+        {
+            if (string.IsNullOrEmpty(fileName)) return;
+            fileName = ResolveFileName(fileName);
+            _switchingToVideo = true;
+            _image.Hide();
+            _commentary.Stop();
+            ShowView("video");
+            _video.Play(fileName);
+            _switchingToVideo = false;
+            _ppt.Close();
+        }
+
+        private void PlayPPT(string? fileName)
+        {
+            if (string.IsNullOrEmpty(fileName)) return;
+            fileName = ResolveFileName(fileName);
+            _video.Hide();
+            _image.Hide();
+            _commentary.Stop();
+            _ppt.Open(fileName);
+        }
+
+        private void TestVideo()
+        {
+            var testFile = System.IO.Directory.GetFiles(@"C:\media", "*.mp4").FirstOrDefault();
+            if (testFile != null) PlayVideo(testFile);
+            else ShowToast("❌ C:\\media 下没有 mp4 文件");
+        }
         private void TestSpeech() => Speak("您好，欢迎来到思德科技展厅，这里展示了我们的核心产品与解决方案。");
         private void TestQA() => ShowQA("思德科技的主营业务是什么？", "思德科技专注于人工智能营销解决方案，为企业打造智能化展厅与营销系统。");
         private void TestPPT() { }
