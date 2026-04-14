@@ -79,6 +79,7 @@ namespace ExhibitionClient.Views
             {
                 BeginInvoke(new Action(() =>
                 {
+                    Logger.Info($"[WS] 处理命令 action={cmd.Action}, file={cmd.File}, slide={cmd.Slide}");
                     switch (cmd.Action)
                     {
                         case "play_video":
@@ -91,12 +92,24 @@ namespace ExhibitionClient.Views
                             PlayPPT(cmd.File);
                             break;
                         case "next_slide":
+                        case "ppt_next":
+                        case "next_page":
+                        case "ppt_next_page":
                             _ppt.Next();
                             break;
                         case "prev_slide":
+                        case "ppt_prev":
+                        case "prev_page":
+                        case "ppt_prev_page":
                             _ppt.Prev();
                             break;
+                        case "goto_slide":
+                        case "ppt_goto":
+                        case "goto_page":
+                            if (cmd.Slide.HasValue) _ppt.Goto(cmd.Slide.Value);
+                            break;
                         case "close_ppt":
+                        case "ppt_close":
                             _ppt.Close();
                             ShowIdle();
                             break;
@@ -500,10 +513,20 @@ namespace ExhibitionClient.Views
         {
             BeginInvoke(new Action(() =>
             {
-                Logger.Info($"[UI] OnPPTClosed currentView={_currentView}, switchingToVideo={_switchingToVideo}");
+                Logger.Info($"[UI] OnPPTClosed currentView={_currentView}, switchingToVideo={_switchingToVideo}, switchingToPpt={_switchingToPpt}");
                 if (_switchingToVideo || _currentView == "video")
                 {
                     Logger.Info("[UI] 当前正在播放/切换视频，忽略 OnPPTClosed -> ShowIdle");
+                    return;
+                }
+                if (_switchingToPpt)
+                {
+                    Logger.Info("[UI] 当前正在切换 PPT，忽略 OnPPTClosed -> ShowIdle");
+                    return;
+                }
+                if (_currentView == "doc")
+                {
+                    Logger.Info("[UI] 当前正在显示图片/文档，忽略 OnPPTClosed -> ShowIdle");
                     return;
                 }
                 ShowIdle();
@@ -624,14 +647,18 @@ namespace ExhibitionClient.Views
             _ppt.Close();
         }
 
+        private bool _switchingToPpt;
+
         private void PlayPPT(string? fileName)
         {
             if (string.IsNullOrEmpty(fileName)) return;
             fileName = ResolveFileName(fileName);
+            _switchingToPpt = true;
             _video.Hide();
             _image.Hide();
             _commentary.Stop();
             _ppt.Open(fileName);
+            _switchingToPpt = false;
         }
 
         private void TestVideo()
