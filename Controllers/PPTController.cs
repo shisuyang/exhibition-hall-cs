@@ -58,9 +58,10 @@ namespace ExhibitionClient.Controllers
                 KillAllPowerPoint();
 
                 // 直接调用 PowerPoint 打开，避免系统默认程序/受保护视图影响 F5
+                var powerPointExe = ResolvePowerPointPath();
                 var psi = new ProcessStartInfo
                 {
-                    FileName = "powerpnt.exe",
+                    FileName = powerPointExe,
                     Arguments = $"/S \"{localPath}\"",
                     UseShellExecute = true,
                     WindowStyle = ProcessWindowStyle.Maximized
@@ -91,6 +92,40 @@ namespace ExhibitionClient.Controllers
                 _isOpened = false;
                 throw;
             }
+        }
+
+        private string ResolvePowerPointPath()
+        {
+            var candidates = new[]
+            {
+                "powerpnt.exe",
+                @"C:\Program Files\Microsoft Office\root\Office16\POWERPNT.EXE",
+                @"C:\Program Files (x86)\Microsoft Office\root\Office16\POWERPNT.EXE",
+                @"C:\Program Files\Microsoft Office\Office16\POWERPNT.EXE",
+                @"C:\Program Files (x86)\Microsoft Office\Office16\POWERPNT.EXE",
+                @"C:\Program Files\Microsoft Office\root\Office15\POWERPNT.EXE",
+                @"C:\Program Files (x86)\Microsoft Office\root\Office15\POWERPNT.EXE"
+            };
+
+            foreach (var path in candidates)
+            {
+                if (path.Equals("powerpnt.exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        Logger.Info("[PPT] 使用 PATH 中的 powerpnt.exe");
+                        return path;
+                    }
+                    catch { }
+                }
+                else if (File.Exists(path))
+                {
+                    Logger.Info($"[PPT] 使用固定路径: {path}");
+                    return path;
+                }
+            }
+
+            throw new FileNotFoundException("未找到 PowerPoint 可执行文件，请安装 Microsoft PowerPoint 或检查 Office 安装路径。");
         }
 
         private async Task EnsureSlideShowAndTopMostAsync()
