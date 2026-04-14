@@ -17,6 +17,7 @@ namespace ExhibitionClient.Views
         private readonly WebSocketService _ws;
         private readonly FileSyncService _sync;
         private readonly CommentaryService _commentary;
+        private readonly RuntimeSettings _settings;
         
         // ==================== 控制器 ====================
         private readonly VideoController _video;
@@ -67,12 +68,11 @@ namespace ExhibitionClient.Views
         {
             Core.Initialize();
 
-            var wsUrl = System.Configuration.ConfigurationManager.AppSettings["WebSocketUrl"] ?? "ws://192.168.23.83:3000";
-            var fileServerUrl = System.Configuration.ConfigurationManager.AppSettings["FileServerUrl"] ?? "http://192.168.23.83:3001";
-            var mediaPath = System.Configuration.ConfigurationManager.AppSettings["MediaPath"] ?? @"C:\media";
-            int? fixedScreen = null;
-            if (int.TryParse(System.Configuration.ConfigurationManager.AppSettings["ScreenNumber"], out var sn) && sn > 0)
-                fixedScreen = sn;
+            _settings = RuntimeSettings.Load();
+            var wsUrl = _settings.WebSocketUrl;
+            var fileServerUrl = _settings.FileServerUrl;
+            var mediaPath = _settings.MediaPath;
+            int? fixedScreen = _settings.ScreenNumber;
 
             _ws = new WebSocketService(wsUrl, fixedScreen);
             _ws.OnCommand += cmd =>
@@ -264,7 +264,8 @@ namespace ExhibitionClient.Views
                 Text = "🏢",
                 Font = new Font("", 80F),
                 TextAlign = ContentAlignment.MiddleCenter,
-                AutoSize = true
+                AutoSize = true,
+                BackColor = Color.Transparent
             };
             panel.Controls.Add(_idleLogo);
 
@@ -274,7 +275,8 @@ namespace ExhibitionClient.Views
                 Font = new Font("Microsoft YaHei UI", 48F, FontStyle.Bold),
                 ForeColor = Color.White,
                 TextAlign = ContentAlignment.MiddleCenter,
-                AutoSize = true
+                AutoSize = true,
+                BackColor = Color.Transparent
             };
             panel.Controls.Add(_idleTitle);
 
@@ -284,7 +286,8 @@ namespace ExhibitionClient.Views
                 Font = new Font("Microsoft YaHei UI", 18F),
                 ForeColor = Color.FromArgb(136, 136, 136),
                 TextAlign = ContentAlignment.MiddleCenter,
-                AutoSize = true
+                AutoSize = true,
+                BackColor = Color.Transparent
             };
             panel.Controls.Add(_idleSubtitle);
 
@@ -294,7 +297,8 @@ namespace ExhibitionClient.Views
                 Font = new Font("Microsoft YaHei UI", 14F),
                 ForeColor = Color.FromArgb(85, 85, 85),
                 TextAlign = ContentAlignment.MiddleCenter,
-                AutoSize = true
+                AutoSize = true,
+                BackColor = Color.Transparent
             };
             panel.Controls.Add(_idleHint);
 
@@ -707,7 +711,7 @@ namespace ExhibitionClient.Views
                     _adminPanel.Visible = _isAdminVisible;
                     break;
                 case Keys.Escape:
-                    Application.Exit();
+                    OpenSettingsDialog();
                     break;
                 case Keys.F11:
                 case Keys.Enter when e.Control:
@@ -746,6 +750,20 @@ namespace ExhibitionClient.Views
             if (_adminPanel.Tag is Label label)
             {
                 label.Text = _screenNumber.HasValue ? $"{_screenNumber}号屏 | {status}" : status;
+            }
+        }
+
+        private void OpenSettingsDialog()
+        {
+            using var form = new SettingsForm(_settings);
+            var result = form.ShowDialog(this);
+            if (result == DialogResult.OK)
+            {
+                ShowToast("配置已保存，重启程序后生效");
+            }
+            else if (result == DialogResult.Abort)
+            {
+                Application.Exit();
             }
         }
 
